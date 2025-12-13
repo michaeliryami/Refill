@@ -1,0 +1,652 @@
+/**
+ * Map Screen
+ * 
+ * Main screen showing map with restaurant markers and search functionality
+ * 
+ * @module screens/MapScreen
+ */
+
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  Keyboard,
+  TouchableWithoutFeedback,
+  ScrollView,
+} from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import * as Location from 'expo-location';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Spacing, Typography, BorderRadius, Shadows } from '@utils/constants';
+import type { Restaurant, Location as LocationType, MapRegion } from '@types';
+import { searchNearbyRestaurants, searchRestaurantsByText } from '@utils/googlePlaces';
+import { getMultipleRestaurantAmenities, submitRestaurantReport } from '@utils/supabase';
+import { RestaurantDetails } from '@components/RestaurantDetails';
+import { MapMarker } from '@components/MapMarker';
+
+// Will be set to user location when available
+
+export const MapScreen: React.FC = () => {
+  const [region, setRegion] = useState<MapRegion | null>(null);
+  const [userLocation, setUserLocation] = useState<LocationType | null>(null);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedFilters, setSelectedFilters] = useState<Array<'refills' | 'bread' | 'payAtTable' | 'attendant'>>([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchSuggestions, setSearchSuggestions] = useState<Restaurant[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const mapRef = useRef<MapView>(null);
+
+  /**
+   * Request location permissions and get user location
+   */
+  useEffect(() => {
+    let isMounted = true;
+    
+    (async () => {
+      try {
+        // Request permission
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            'Location Permission',
+            'Refill needs location access to show nearby restaurants.',
+            [{ text: 'OK' }]
+          );
+          if (isMounted) {
+            setInitialLoad(false);
+          }
+          return;
+        }
+
+        // Get location with high accuracy
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        
+        if (!isMounted) return;
+
+        const userLoc: LocationType = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        };
+        
+        setUserLocation(userLoc);
+        
+        const newRegion = {
+          ...userLoc,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        };
+        setRegion(newRegion);
+        
+        // Animate to user location
+        mapRef.current?.animateToRegion(newRegion, 1000);
+
+        // Load nearby restaurants immediately
+        loadNearbyRestaurants(userLoc);
+        setInitialLoad(false);
+      } catch (error) {
+        console.error('Error getting location:', error);
+        if (isMounted) {
+          setInitialLoad(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  /**
+   * Load nearby restaurants and their amenity data from Supabase
+   */
+  const loadNearbyRestaurants = async (location: LocationType): Promise<void> => {
+    // Don't show loading for initial load - just load in background
+    const wasInitialLoad = initialLoad;
+    if (!wasInitialLoad) {
+      setIsLoading(true);
+    }
+    
+    try {
+      // Get restaurants from Google Places
+      const results = await searchNearbyRestaurants(location, 5000);
+      
+      // Fetch amenity data from Supabase for all restaurants
+      const placeIds = results.map(r => r.placeId);
+      const dataMap = await getMultipleRestaurantAmenities(placeIds);
+      
+      // Merge amenity data and scores with restaurant data
+      const restaurantsWithAmenities = results.map(restaurant => {
+        const data = dataMap.get(restaurant.placeId);
+        return {
+          ...restaurant,
+          amenities: data?.amenities || restaurant.amenities,
+          score: data?.score,
+        };
+      });
+      
+      setRestaurants(restaurantsWithAmenities);
+    } catch (error) {
+      console.error('Error loading restaurants:', error);
+      setRestaurants([]);
+    } finally {
+      if (!wasInitialLoad) {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  /**
+   * Handle search as user types
+   */
+  const handleSearchInput = useCallback(async (text: string): Promise<void> => {
+    setSearchQuery(text);
+    
+    if (text.trim().length < 2) {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    try {
+      const searchLocation = userLocation || {
+        latitude: 39.8283,
+        longitude: -98.5795,
+      };
+
+      const results = await searchRestaurantsByText(text, searchLocation);
+      setSearchSuggestions(results.slice(0, 5)); // Show top 5 results
+      setShowSuggestions(true);
+    } catch (error) {
+      console.error('Error searching:', error);
+      setSearchSuggestions([]);
+    }
+  }, [userLocation]);
+
+  /**
+   * Handle selecting a search suggestion
+   */
+  const handleSelectSuggestion = useCallback((restaurant: Restaurant): void => {
+    setSearchQuery(restaurant.name);
+    setShowSuggestions(false);
+    setRestaurants([restaurant]);
+    
+    // Pan to selected restaurant
+    const newRegion = {
+      latitude: restaurant.location.latitude,
+      longitude: restaurant.location.longitude,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
+    };
+    setRegion(newRegion);
+    mapRef.current?.animateToRegion(newRegion, 1000);
+    
+    // Open the restaurant details modal
+    setSelectedRestaurant(restaurant);
+    setModalVisible(true);
+  }, []);
+
+  /**
+   * Handle marker press
+   */
+  const handleMarkerPress = useCallback((restaurant: Restaurant): void => {
+    setSelectedRestaurant(restaurant);
+    setModalVisible(true);
+  }, []);
+
+  /**
+   * Handle report submission
+   */
+  const handleReport = useCallback(async (restaurantId: string, amenities: any): Promise<void> => {
+    try {
+      // Submit to Supabase
+      const success = await submitRestaurantReport(restaurantId, amenities);
+      
+      if (!success) {
+        Alert.alert('Error', 'Failed to submit report. Please try again.');
+        return;
+      }
+
+      // Fetch updated data from Supabase
+      const dataMap = await getMultipleRestaurantAmenities([restaurantId]);
+      const updatedData = dataMap.get(restaurantId);
+      
+      if (updatedData) {
+        // Update local state with real data from Supabase
+        setRestaurants(prev =>
+          prev.map(r =>
+            r.id === restaurantId
+              ? { ...r, amenities: updatedData.amenities, score: updatedData.score }
+              : r
+          )
+        );
+
+        if (selectedRestaurant?.id === restaurantId) {
+          setSelectedRestaurant(prev =>
+            prev ? { ...prev, amenities: updatedData.amenities, score: updatedData.score } : null
+          );
+        }
+      }
+
+      Alert.alert('Success! 🎉', 'Thank you for helping society!');
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      Alert.alert('Error', 'Failed to submit report. Please try again.');
+    }
+  }, [selectedRestaurant]);
+
+  /**
+   * Toggle filter selection
+   */
+  const toggleFilter = useCallback((filter: 'refills' | 'bread' | 'payAtTable' | 'attendant') => {
+    setSelectedFilters(prev => {
+      if (prev.includes(filter)) {
+        return prev.filter(f => f !== filter);
+      } else {
+        return [...prev, filter];
+      }
+    });
+  }, []);
+
+  /**
+   * Filter restaurants based on selected filters
+   */
+  const filteredRestaurants = useMemo((): Restaurant[] => {
+    if (selectedFilters.length === 0) {
+      return restaurants;
+    }
+
+    return restaurants.filter(restaurant => {
+      return selectedFilters.every(filter => {
+        switch (filter) {
+          case 'refills':
+            return restaurant.amenities.freeRefills === true;
+          case 'bread':
+            return restaurant.amenities.breadBasket === true;
+          case 'payAtTable':
+            return restaurant.amenities.payAtTable === true;
+          case 'attendant':
+            return restaurant.amenities.attendant === true;
+          default:
+            return true;
+        }
+      });
+    });
+  }, [restaurants, selectedFilters]);
+
+  return (
+    <View style={styles.container}>
+      {/* Map */}
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        provider={PROVIDER_GOOGLE}
+        initialRegion={region || {
+          latitude: 39.8283,
+          longitude: -98.5795,
+          latitudeDelta: 50,
+          longitudeDelta: 50,
+        }}
+        showsUserLocation
+        showsMyLocationButton
+        zoomEnabled
+        zoomControlEnabled
+        pitchEnabled
+        rotateEnabled
+        scrollEnabled
+        onPress={() => {
+          setShowSuggestions(false);
+          setShowFilters(false);
+          Keyboard.dismiss();
+        }}
+      >
+        {filteredRestaurants.map((restaurant) => (
+          <Marker
+            key={restaurant.id}
+            coordinate={restaurant.location}
+            onPress={() => handleMarkerPress(restaurant)}
+          >
+            <MapMarker
+              type={
+                restaurant.amenities.freeRefills
+                  ? 'refill'
+                  : restaurant.amenities.breadBasket
+                  ? 'bread'
+                  : 'restaurant'
+              }
+              size={24}
+            />
+          </Marker>
+        ))}
+      </MapView>
+
+      {/* Search Bar */}
+      <View style={styles.header}>
+        <View style={styles.searchWrapper}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={20} color="#6B7280" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search restaurants..."
+                placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={handleSearchInput}
+                onFocus={() => searchSuggestions.length > 0 && setShowSuggestions(true)}
+                onSubmitEditing={Keyboard.dismiss}
+                returnKeyType="done"
+                autoCapitalize="none"
+                autoCorrect={false}
+                blurOnSubmit
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity 
+                  style={styles.clearButton}
+                  onPress={() => {
+                    setSearchQuery('');
+                    setSearchSuggestions([]);
+                    setShowSuggestions(false);
+                    Keyboard.dismiss();
+                    if (userLocation) {
+                      loadNearbyRestaurants(userLocation);
+                    }
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close" size={20} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity 
+                style={styles.filterButton} 
+                onPress={() => {
+                  setShowFilters(!showFilters);
+                  setShowSuggestions(false);
+                  Keyboard.dismiss();
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="menu" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+          </TouchableWithoutFeedback>
+
+          {/* Search Suggestions Dropdown */}
+          {showSuggestions && searchSuggestions.length > 0 && (
+            <View style={styles.suggestionsContainer}>
+              {searchSuggestions.map((restaurant) => (
+                <TouchableOpacity
+                  key={restaurant.id}
+                  style={styles.suggestionItem}
+                  onPress={() => {
+                    handleSelectSuggestion(restaurant);
+                    Keyboard.dismiss();
+                  }}
+                >
+                  <Ionicons name="location" size={18} color="#6B7280" style={styles.suggestionIcon} />
+                  <View style={styles.suggestionContent}>
+                    <Text style={styles.suggestionName}>{restaurant.name}</Text>
+                    <Text style={styles.suggestionAddress}>{restaurant.address}</Text>
+                  </View>
+                  {restaurant.distance && (
+                    <Text style={styles.suggestionDistance}>{restaurant.distance} mi</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Filter Chips - Only show when menu is clicked */}
+        {showFilters && (
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScrollView}
+            contentContainerStyle={styles.filterChips}
+          >
+            <TouchableOpacity
+              style={[styles.filterChip, selectedFilters.length === 0 && styles.filterChipActive]}
+              onPress={() => setSelectedFilters([])}
+            >
+              <Text style={[styles.filterChipText, selectedFilters.length === 0 && styles.filterChipTextActive]}>
+                All
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterChip, selectedFilters.includes('refills') && styles.filterChipActive]}
+              onPress={() => toggleFilter('refills')}
+            >
+              <Ionicons 
+                name="water" 
+                size={16} 
+                color={selectedFilters.includes('refills') ? '#FFFFFF' : '#6B7280'} 
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.filterChipText, selectedFilters.includes('refills') && styles.filterChipTextActive]}>
+                Free Refills
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterChip, selectedFilters.includes('bread') && styles.filterChipActive]}
+              onPress={() => toggleFilter('bread')}
+            >
+              <Ionicons 
+                name="restaurant" 
+                size={16} 
+                color={selectedFilters.includes('bread') ? '#FFFFFF' : '#6B7280'} 
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.filterChipText, selectedFilters.includes('bread') && styles.filterChipTextActive]}>
+                Bread
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterChip, selectedFilters.includes('payAtTable') && styles.filterChipActive]}
+              onPress={() => toggleFilter('payAtTable')}
+            >
+              <Ionicons 
+                name="card" 
+                size={16} 
+                color={selectedFilters.includes('payAtTable') ? '#FFFFFF' : '#6B7280'} 
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.filterChipText, selectedFilters.includes('payAtTable') && styles.filterChipTextActive]}>
+                Pay at Table
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterChip, selectedFilters.includes('attendant') && styles.filterChipActive]}
+              onPress={() => toggleFilter('attendant')}
+            >
+              <Ionicons 
+                name="person" 
+                size={16} 
+                color={selectedFilters.includes('attendant') ? '#FFFFFF' : '#6B7280'} 
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.filterChipText, selectedFilters.includes('attendant') && styles.filterChipTextActive]}>
+                Bathroom Attendant
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
+      </View>
+
+      {/* Loading Indicator */}
+      {isLoading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FFEB3B" />
+        </View>
+      )}
+
+      {/* Modal for Restaurant Details */}
+      <Modal
+        visible={modalVisible && selectedRestaurant !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {selectedRestaurant && (
+              <RestaurantDetails
+                restaurant={selectedRestaurant}
+                onClose={() => setModalVisible(false)}
+                onReport={handleReport}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  map: {
+    flex: 1,
+  },
+  header: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: Spacing.md,
+    right: Spacing.md,
+    zIndex: 1000,
+  },
+  searchWrapper: {
+    position: 'relative',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    ...Shadows.md,
+  },
+  searchIcon: {
+    marginRight: Spacing.xs,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: Typography.fontSize.base,
+    color: Colors.textPrimary,
+    padding: 0,
+  },
+  clearButton: {
+    marginLeft: Spacing.xs,
+  },
+  filterButton: {
+    marginLeft: Spacing.xs,
+  },
+  suggestionsContainer: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.xs,
+    ...Shadows.lg,
+    maxHeight: 300,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  suggestionIcon: {
+    marginRight: Spacing.sm,
+  },
+  suggestionContent: {
+    flex: 1,
+  },
+  suggestionName: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  suggestionAddress: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  suggestionDistance: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textTertiary,
+    marginLeft: Spacing.sm,
+  },
+  filterScrollView: {
+    maxHeight: 50,
+    marginTop: Spacing.sm,
+  },
+  filterChips: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+    ...Shadows.sm,
+  },
+  filterChipActive: {
+    backgroundColor: Colors.black,
+  },
+  filterChipText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.textPrimary,
+  },
+  filterChipTextActive: {
+    color: Colors.white,
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -20 }, { translateY: -20 }],
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '70%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+  },
+});
+

@@ -13,7 +13,18 @@ import { calculateScore } from './scoreCalculator';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('⚠️ Supabase credentials not configured!');
+  console.warn('SUPABASE_URL:', supabaseUrl ? 'configured' : 'MISSING');
+  console.warn('SUPABASE_ANON_KEY:', supabaseAnonKey ? 'configured' : 'MISSING');
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+console.log('🔧 Supabase client initialized:', {
+  url: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'NOT SET',
+  hasKey: !!supabaseAnonKey
+});
 
 /**
  * Database row structure matching your Supabase table
@@ -33,6 +44,7 @@ interface RestaurantRow {
  */
 export async function getRestaurantAmenities(placeId: string): Promise<RestaurantAmenities | null> {
   try {
+    console.log('🔍 Fetching single restaurant:', placeId);
     const { data, error } = await supabase
       .from('places')
       .select('*')
@@ -42,8 +54,10 @@ export async function getRestaurantAmenities(placeId: string): Promise<Restauran
     if (error) {
       if (error.code === 'PGRST116') {
         // No data found - return null
+        console.log('ℹ️ No data found for place:', placeId);
         return null;
       }
+      console.error('❌ Error fetching single restaurant:', error);
       throw error;
     }
 
@@ -216,12 +230,23 @@ export async function getMultipleRestaurantAmenities(
   placeIds: string[]
 ): Promise<Map<string, RestaurantData>> {
   try {
+    console.log('🔍 Querying Supabase for place IDs:', placeIds.length, 'places');
+    console.log('First 3 place IDs:', placeIds.slice(0, 3));
+    
     const { data, error } = await supabase
       .from('places')
       .select('*')
       .in('key', placeIds);
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Supabase query error:', error);
+      throw error;
+    }
+
+    console.log('✅ Supabase returned:', data?.length || 0, 'results');
+    if (data && data.length > 0) {
+      console.log('Sample data keys:', data.slice(0, 3).map((d: any) => d.key));
+    }
 
     const dataMap = new Map<string, RestaurantData>();
 

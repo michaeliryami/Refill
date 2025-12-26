@@ -266,3 +266,6 @@ Just run: `npm start`
 
 **You have a production-ready React Native application foundation!** 🎉
 
+
+
+

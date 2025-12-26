@@ -73,17 +73,35 @@ export const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
         </View>
 
         {totalReports > 0 && (
-          <View style={styles.percentageBar}>
-            {yesPercent > 0 && (
-              <View style={[styles.barSegment, styles.yesBar, { width: `${yesPercent}%` }]} />
-            )}
-            {noPercent > 0 && (
-              <View style={[styles.barSegment, styles.noBar, { width: `${noPercent}%` }]} />
-            )}
-            {idkPercent > 0 && (
-              <View style={[styles.barSegment, styles.idkBar, { width: `${idkPercent}%` }]} />
-            )}
-          </View>
+          <>
+            <View style={styles.percentageBar}>
+              {yesPercent > 0 && (
+                <View style={[styles.barSegment, styles.yesBar, { width: `${yesPercent}%` }]} />
+              )}
+              {noPercent > 0 && (
+                <View style={[styles.barSegment, styles.noBar, { width: `${noPercent}%` }]} />
+              )}
+              {idkPercent > 0 && (
+                <View style={[styles.barSegment, styles.idkBar, { width: `${idkPercent}%` }]} />
+              )}
+            </View>
+            <View style={styles.barLabels}>
+              <View style={styles.barLabelItem}>
+                <View style={[styles.barLabelDot, { backgroundColor: '#10B981' }]} />
+                <Text style={styles.barLabelText}>YES ({yesCount})</Text>
+              </View>
+              <View style={styles.barLabelItem}>
+                <View style={[styles.barLabelDot, { backgroundColor: '#EF4444' }]} />
+                <Text style={styles.barLabelText}>NO ({noCount})</Text>
+              </View>
+              {idkCount > 0 && (
+                <View style={styles.barLabelItem}>
+                  <View style={[styles.barLabelDot, { backgroundColor: '#9CA3AF' }]} />
+                  <Text style={styles.barLabelText}>? ({idkCount})</Text>
+                </View>
+              )}
+            </View>
+          </>
         )}
       </View>
     );
@@ -164,9 +182,9 @@ export const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
         </View>
       )}
 
-      {/* Amenities Section */}
+      {/* Essentials Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Amenities</Text>
+        <Text style={styles.sectionTitle}>Essentials</Text>
 
         <View style={styles.amenitiesList}>
           {renderAmenityStatus(
@@ -179,7 +197,7 @@ export const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
           {renderAmenityStatus(
             restaurant.amenities.breadBasket,
             restaurant.amenities.breadBasketStats,
-            'Bread',
+            'Bread Basket',
             'food',
             'material'
           )}
@@ -203,19 +221,19 @@ export const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
       {/* Actions */}
       <View style={styles.actions}>
         <TouchableOpacity 
-          style={[styles.actionButton, styles.directionsButton]}
-          onPress={openDirections}
+          style={[styles.actionButton, styles.reportButton]}
+          onPress={() => setShowSurvey(true)}
         >
-          <Ionicons name="navigate" size={20} color="#1F2937" style={{ marginRight: 8 }} />
-          <Text style={styles.directionsText}>Get Directions</Text>
+          <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" style={{ marginRight: 8 }} />
+          <Text style={styles.reportText}>Share Your Intel</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={styles.reportButton}
-          onPress={() => setShowSurvey(true)}
+          style={[styles.actionButton, styles.directionsButton]}
+          onPress={openDirections}
         >
-          <Ionicons name="add-circle-outline" size={18} color="#10B981" style={{ marginRight: 6 }} />
-          <Text style={styles.reportText}>Share Your Intel</Text>
+          <Ionicons name="navigate" size={18} color="#1F2E39" style={{ marginRight: 6 }} />
+          <Text style={styles.directionsText}>Get Directions</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -406,6 +424,29 @@ const styles = StyleSheet.create({
   idkBar: {
     backgroundColor: '#9CA3AF', // Gray
   },
+  barLabels: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  barLabelItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  barLabelDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  barLabelText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: Typography.fontWeight.semibold,
+  },
   actions: {
     padding: Spacing.lg,
     gap: Spacing.md,
@@ -414,29 +455,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.md,
     borderRadius: BorderRadius.base,
     gap: Spacing.sm,
   },
-  directionsButton: {
-    backgroundColor: '#FFEB3B',
+  reportButton: {
+    backgroundColor: '#1F2E39',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     ...Shadows.base,
   },
-  directionsText: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.textPrimary,
-  },
-  reportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.sm,
-  },
   reportText: {
-    fontSize: Typography.fontSize.sm,
-    color: '#10B981',
+    fontSize: Typography.fontSize.xl,
+    color: '#FFFFFF',
+    fontWeight: Typography.fontWeight.bold,
+  },
+  directionsButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#1F2E39',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  directionsText: {
+    fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.semibold,
+    color: '#1F2E39',
   },
 });
 

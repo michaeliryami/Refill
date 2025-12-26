@@ -13,3 +13,6 @@ Get your Supabase credentials from:
 2. Settings > API
 3. Copy Project URL and anon public key
 
+
+
+

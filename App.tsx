@@ -1,5 +1,6 @@
+import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { MapScreen } from './src/screens/MapScreen';
+import { MapScreen, SplashScreen } from './src/screens';
 
 /**
  * Main Application Component
@@ -16,6 +17,17 @@ import { MapScreen } from './src/screens/MapScreen';
  * @returns {JSX.Element} The root application component
  */
 export default function App(): JSX.Element {
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return (
+      <>
+        <SplashScreen onFinish={() => setShowSplash(false)} />
+        <StatusBar style="light" />
+      </>
+    );
+  }
+
   return (
     <>
       <MapScreen />

@@ -37,17 +37,17 @@ const amenityOptions: AmenityOption[] = [
   },
   {
     key: 'breadBasket',
-    label: 'Bread',
+    label: 'Bread Basket',
     iconName: 'food',
     iconLibrary: 'material',
     description: 'Free basket',
   },
   {
     key: 'payAtTable',
-    label: 'Pay at Table',
+    label: 'Pay at Table (Clover/Toast)',
     iconName: 'credit-card',
     iconLibrary: 'material',
-    description: 'Toast or Clover',
+    description: 'Tablet payments',
   },
   {
     key: 'attendant',
@@ -74,6 +74,23 @@ export const AmenitySurvey: React.FC<AmenitySurveyProps> = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [baseScore, setBaseScore] = useState(initialAmenities?.baseScore || 5);
+
+  /**
+   * Get slider color based on score (red to yellow to green)
+   */
+  const getSliderColor = (score: number): string => {
+    if (score < 3.5) {
+      // Red zone (0-3.5)
+      const intensity = Math.floor((score / 3.5) * 255);
+      return `rgb(239, ${Math.min(68 + intensity, 180)}, 68)`;
+    } else if (score < 7) {
+      // Yellow zone (3.5-7)
+      return '#F59E0B'; // Amber
+    } else {
+      // Green zone (7-10)
+      return '#10B981';
+    }
+  };
 
   const toggleAmenity = (key: keyof Omit<RestaurantAmenities, 'verifiedAt' | 'reportedBy' | 'freeRefillsStats' | 'breadBasketStats' | 'payAtTableStats' | 'attendantStats'>): void => {
     setAmenities((prev: RestaurantAmenities) => ({
@@ -113,16 +130,18 @@ export const AmenitySurvey: React.FC<AmenitySurveyProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Report Amenities</Text>
+      <Text style={styles.title}>Report Your Findings</Text>
       <Text style={styles.subtitle}>
-        Help others by sharing what amenities this restaurant offers
+        Save society by sharing what this restaurant does right and wrong.
       </Text>
 
       {/* Experience Score Slider */}
       <View style={styles.scoreSection}>
-        <Text style={styles.scoreQuestion}>general vibe & food rating</Text>
+        <Text style={styles.scoreQuestion}>General Vibe & Rating</Text>
         <View style={styles.scoreDisplay}>
-          <Text style={styles.scoreValue}>{baseScore.toFixed(1)}</Text>
+          <Text style={[styles.scoreValue, { color: getSliderColor(baseScore) }]}>
+            {baseScore.toFixed(1)}
+          </Text>
           <Text style={styles.scoreMax}> / 10</Text>
         </View>
         <Slider
@@ -132,9 +151,9 @@ export const AmenitySurvey: React.FC<AmenitySurveyProps> = ({
           step={0.1}
           value={baseScore}
           onValueChange={setBaseScore}
-          minimumTrackTintColor="#10B981"
+          minimumTrackTintColor={getSliderColor(baseScore)}
           maximumTrackTintColor="#E5E7EB"
-          thumbTintColor="#10B981"
+          thumbTintColor={getSliderColor(baseScore)}
         />
         <View style={styles.scoreLabels}>
           <Text style={styles.scoreLabel}>Poor</Text>
@@ -245,7 +264,7 @@ const styles = StyleSheet.create({
   scoreValue: {
     fontSize: 48,
     fontWeight: Typography.fontWeight.bold,
-    color: '#10B981',
+    // Color is set dynamically
   },
   scoreMax: {
     fontSize: Typography.fontSize.xl,
@@ -340,7 +359,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   submitButton: {
-    backgroundColor: '#FFEB3B',
+    backgroundColor: '#1F2E39',
     paddingVertical: Spacing.lg,
   },
   submitButtonDisabled: {
@@ -349,7 +368,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: Typography.fontSize.xl,
     fontWeight: Typography.fontWeight.bold,
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
   },
 });
 

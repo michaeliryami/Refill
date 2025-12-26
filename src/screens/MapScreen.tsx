@@ -20,6 +20,8 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   ScrollView,
+  PanResponder,
+  Animated,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -30,6 +32,7 @@ import { searchNearbyRestaurants, searchRestaurantsByText } from '@utils/googleP
 import { getMultipleRestaurantAmenities, submitRestaurantReport } from '@utils/supabase';
 import { RestaurantDetails } from '@components/RestaurantDetails';
 import { MapMarker } from '@components/MapMarker';
+import { SuccessModal } from '@components/SuccessModal';
 
 // Will be set to user location when available
 
@@ -46,8 +49,47 @@ export const MapScreen: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState<Restaurant[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const mapRef = useRef<MapView>(null);
+  const modalTranslateY = useRef(new Animated.Value(0)).current;
+
+  /**
+   * Pan responder for swipe to dismiss
+   */
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to vertical swipes
+        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && gestureState.dy > 0;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          modalTranslateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 100) {
+          // Swipe down threshold exceeded, close modal
+          Animated.timing(modalTranslateY, {
+            toValue: 600,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => {
+            setModalVisible(false);
+            modalTranslateY.setValue(0);
+          });
+        } else {
+          // Reset position
+          Animated.spring(modalTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   /**
    * Request location permissions and get user location
@@ -128,11 +170,20 @@ export const MapScreen: React.FC = () => {
       
       // Fetch amenity data from Supabase for all restaurants
       const placeIds = results.map(r => r.placeId);
+      console.log('📍 Loading amenities for', placeIds.length, 'restaurants');
       const dataMap = await getMultipleRestaurantAmenities(placeIds);
+      console.log('📊 Got data for', dataMap.size, 'restaurants from Supabase');
       
       // Merge amenity data and scores with restaurant data
       const restaurantsWithAmenities = results.map(restaurant => {
         const data = dataMap.get(restaurant.placeId);
+        if (data) {
+          console.log(`✨ Found data for ${restaurant.name}:`, {
+            score: data.score,
+            hasStats: !!data.amenities.freeRefillsStats,
+            totalReports: data.amenities.freeRefillsStats?.total || 0
+          });
+        }
         return {
           ...restaurant,
           amenities: data?.amenities || restaurant.amenities,
@@ -170,7 +221,22 @@ export const MapScreen: React.FC = () => {
       };
 
       const results = await searchRestaurantsByText(text, searchLocation);
-      setSearchSuggestions(results.slice(0, 5)); // Show top 5 results
+      
+      // Fetch amenity data for search results
+      const placeIds = results.map(r => r.placeId);
+      const dataMap = await getMultipleRestaurantAmenities(placeIds);
+      
+      // Merge amenity data with search results
+      const resultsWithAmenities = results.map(restaurant => {
+        const data = dataMap.get(restaurant.placeId);
+        return {
+          ...restaurant,
+          amenities: data?.amenities || restaurant.amenities,
+          score: data?.score,
+        };
+      });
+      
+      setSearchSuggestions(resultsWithAmenities.slice(0, 5)); // Show top 5 results
       setShowSuggestions(true);
     } catch (error) {
       console.error('Error searching:', error);
@@ -181,15 +247,34 @@ export const MapScreen: React.FC = () => {
   /**
    * Handle selecting a search suggestion
    */
-  const handleSelectSuggestion = useCallback((restaurant: Restaurant): void => {
+  const handleSelectSuggestion = useCallback(async (restaurant: Restaurant): Promise<void> => {
     setSearchQuery(restaurant.name);
     setShowSuggestions(false);
-    setRestaurants([restaurant]);
+    
+    // Fetch amenity data for the selected restaurant
+    console.log('🔎 Fetching data for selected restaurant:', restaurant.placeId);
+    const dataMap = await getMultipleRestaurantAmenities([restaurant.placeId]);
+    const data = dataMap.get(restaurant.placeId);
+    
+    // Update restaurant with amenity data
+    const updatedRestaurant = {
+      ...restaurant,
+      amenities: data?.amenities || restaurant.amenities,
+      score: data?.score,
+    };
+    
+    console.log('Selected restaurant data:', {
+      name: updatedRestaurant.name,
+      hasData: !!data,
+      score: updatedRestaurant.score
+    });
+    
+    setRestaurants([updatedRestaurant]);
     
     // Pan to selected restaurant
     const newRegion = {
-      latitude: restaurant.location.latitude,
-      longitude: restaurant.location.longitude,
+      latitude: updatedRestaurant.location.latitude,
+      longitude: updatedRestaurant.location.longitude,
       latitudeDelta: 0.02,
       longitudeDelta: 0.02,
     };
@@ -197,7 +282,7 @@ export const MapScreen: React.FC = () => {
     mapRef.current?.animateToRegion(newRegion, 1000);
     
     // Open the restaurant details modal
-    setSelectedRestaurant(restaurant);
+    setSelectedRestaurant(updatedRestaurant);
     setModalVisible(true);
   }, []);
 
@@ -243,7 +328,7 @@ export const MapScreen: React.FC = () => {
         }
       }
 
-      Alert.alert('Success! 🎉', 'Thank you for helping society!');
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error submitting report:', error);
       Alert.alert('Error', 'Failed to submit report. Please try again.');
@@ -315,24 +400,37 @@ export const MapScreen: React.FC = () => {
           Keyboard.dismiss();
         }}
       >
-        {filteredRestaurants.map((restaurant) => (
-          <Marker
-            key={restaurant.id}
-            coordinate={restaurant.location}
-            onPress={() => handleMarkerPress(restaurant)}
-          >
-            <MapMarker
-              type={
-                restaurant.amenities.freeRefills
-                  ? 'refill'
-                  : restaurant.amenities.breadBasket
-                  ? 'bread'
-                  : 'restaurant'
-              }
-              size={24}
-            />
-          </Marker>
-        ))}
+        {filteredRestaurants.map((restaurant) => {
+          // Determine if restaurant has any reported data
+          const hasData = 
+            restaurant.amenities.freeRefillsStats?.total || 
+            restaurant.amenities.breadBasketStats?.total || 
+            restaurant.amenities.payAtTableStats?.total || 
+            restaurant.amenities.attendantStats?.total || 
+            false;
+
+          return (
+            <Marker
+              key={restaurant.id}
+              coordinate={restaurant.location}
+              onPress={() => handleMarkerPress(restaurant)}
+            >
+              <MapMarker
+                type={
+                  restaurant.amenities.freeRefills
+                    ? 'refill'
+                    : restaurant.amenities.breadBasket
+                    ? 'bread'
+                    : 'restaurant'
+                }
+                size={28}
+                score={restaurant.score}
+                name={restaurant.name}
+                hasData={!!hasData}
+              />
+            </Marker>
+          );
+        })}
       </MapView>
 
       {/* Search Bar */}
@@ -505,18 +603,40 @@ export const MapScreen: React.FC = () => {
         transparent
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {selectedRestaurant && (
-              <RestaurantDetails
-                restaurant={selectedRestaurant}
-                onClose={() => setModalVisible(false)}
-                onReport={handleReport}
-              />
-            )}
+        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <Animated.View 
+                style={[
+                  styles.modalContent,
+                  {
+                    transform: [{ translateY: modalTranslateY }],
+                  },
+                ]}
+              >
+                <View {...panResponder.panHandlers} style={styles.dragHandle}>
+                  <View style={styles.dragHandleLine} />
+                </View>
+                {selectedRestaurant && (
+                  <RestaurantDetails
+                    restaurant={selectedRestaurant}
+                    onClose={() => setModalVisible(false)}
+                    onReport={handleReport}
+                  />
+                )}
+              </Animated.View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={showSuccessModal}
+        title="Success!"
+        message="Thank you for helping society!"
+        onClose={() => setShowSuccessModal(false)}
+      />
     </View>
   );
 };
@@ -647,6 +767,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.2,
     shadowRadius: 16,
+    overflow: 'hidden',
+  },
+  dragHandle: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  dragHandleLine: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
   },
 });
 

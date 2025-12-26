@@ -19,4 +19,6 @@ export type { AmenitySurveyProps } from './AmenitySurvey';
 export { RestaurantDetails } from './RestaurantDetails';
 export type { RestaurantDetailsProps } from './RestaurantDetails';
 
+export { SuccessModal } from './SuccessModal';
+
 

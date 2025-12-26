@@ -8,5 +8,6 @@
 
 export { HomeScreen } from './HomeScreen';
 export { MapScreen } from './MapScreen';
+export { SplashScreen } from './SplashScreen';
 
 

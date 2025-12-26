@@ -6,7 +6,7 @@
  * @module components/AmenitySurvey
  */
 
-import React, { useState } from 'react';
+import React, { useState, memo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -58,7 +58,7 @@ const amenityOptions: AmenityOption[] = [
   },
 ];
 
-export const AmenitySurvey: React.FC<AmenitySurveyProps> = ({
+const AmenitySurveyComponent: React.FC<AmenitySurveyProps> = ({
   initialAmenities,
   onSubmit,
   onCancel,
@@ -92,28 +92,28 @@ export const AmenitySurvey: React.FC<AmenitySurveyProps> = ({
     }
   };
 
-  const toggleAmenity = (key: keyof Omit<RestaurantAmenities, 'verifiedAt' | 'reportedBy' | 'freeRefillsStats' | 'breadBasketStats' | 'payAtTableStats' | 'attendantStats'>): void => {
+  const toggleAmenity = useCallback((key: keyof Omit<RestaurantAmenities, 'verifiedAt' | 'reportedBy' | 'freeRefillsStats' | 'breadBasketStats' | 'payAtTableStats' | 'attendantStats'>): void => {
     setAmenities((prev: RestaurantAmenities) => ({
       ...prev,
       [key]: prev[key] === null ? true : prev[key] === true ? false : null,
     }));
-  };
+  }, []);
 
-  const getButtonColor = (value: boolean | null): string => {
+  const getButtonColor = useCallback((value: boolean | null): string => {
     if (value === true) return '#10B981'; // Green for YES
     if (value === false) return '#EF4444'; // Red for NO
     return '#9CA3AF'; // Gray for not answered
-  };
+  }, []);
 
-  const getButtonText = (value: boolean | null): string => {
+  const getButtonText = useCallback((value: boolean | null): string => {
     if (value === true) return 'YES';
     if (value === false) return 'NO';
     return '?';
-  };
+  }, []);
 
-  const getButtonTextColor = (value: boolean | null): string => {
+  const getButtonTextColor = useCallback((value: boolean | null): string => {
     return Colors.white; // White text for all states for better contrast
-  };
+  }, []);
 
   const canSubmit = Object.values(amenities).some(v => v !== null);
 
@@ -224,6 +224,9 @@ export const AmenitySurvey: React.FC<AmenitySurveyProps> = ({
     </View>
   );
 };
+
+// Memoize the component
+export const AmenitySurvey = memo(AmenitySurveyComponent);
 
 const styles = StyleSheet.create({
   container: {

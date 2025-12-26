@@ -18,7 +18,7 @@ export interface MapMarkerProps {
   hasData?: boolean; // Whether restaurant has any reported data
 }
 
-export const MapMarker = memo<MapMarkerProps>(({ 
+const MapMarkerComponent: React.FC<MapMarkerProps> = ({ 
   type, 
   size = 24, 
   score, 
@@ -76,6 +76,19 @@ export const MapMarker = memo<MapMarkerProps>(({
       </View>
     </View>
   );
+};
+
+// Memoize with strict equality check for maximum performance
+export const MapMarker = memo(MapMarkerComponent, (prevProps, nextProps) => {
+  // Only re-render if critical props actually change
+  if (prevProps.type !== nextProps.type) return false;
+  if (prevProps.score !== nextProps.score) return false;
+  if (prevProps.hasData !== nextProps.hasData) return false;
+  if (prevProps.name !== nextProps.name) return false;
+  // Don't re-render if size is the same (almost always true)
+  if (prevProps.size !== nextProps.size) return false;
+  
+  return true; // Props are equal, don't re-render
 });
 
 const styles = StyleSheet.create({
@@ -83,16 +96,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   nameContainer: {
-    backgroundColor: 'rgba(31, 46, 57, 0.9)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginBottom: 4,
-    maxWidth: 120,
+    backgroundColor: 'rgba(31, 46, 57, 0.95)',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 3,
+    marginBottom: 3,
+    maxWidth: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   nameText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
   },

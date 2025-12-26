@@ -56,13 +56,14 @@ export const MapScreen: React.FC = () => {
 
   /**
    * Pan responder for swipe to dismiss
+   * Only created once on mount for performance
    */
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false, // Don't capture on start
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to vertical swipes
-        return Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && gestureState.dy > 0;
+        // Only respond to significant vertical swipes
+        return Math.abs(gestureState.dy) > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
       },
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy > 0) {
@@ -84,6 +85,7 @@ export const MapScreen: React.FC = () => {
           // Reset position
           Animated.spring(modalTranslateY, {
             toValue: 0,
+            friction: 8,
             useNativeDriver: true,
           }).start();
         }
@@ -400,7 +402,7 @@ export const MapScreen: React.FC = () => {
           Keyboard.dismiss();
         }}
       >
-        {filteredRestaurants.map((restaurant) => {
+        {filteredRestaurants.map((restaurant, index) => {
           // Determine if restaurant has any reported data
           const hasData = 
             restaurant.amenities.freeRefillsStats?.total || 
@@ -409,11 +411,15 @@ export const MapScreen: React.FC = () => {
             restaurant.amenities.attendantStats?.total || 
             false;
 
+          // Only show names for first 15 closest restaurants to reduce render load
+          const showName = index < 15;
+
           return (
             <Marker
               key={restaurant.id}
               coordinate={restaurant.location}
               onPress={() => handleMarkerPress(restaurant)}
+              tracksViewChanges={false} // Critical for performance
             >
               <MapMarker
                 type={
@@ -425,7 +431,7 @@ export const MapScreen: React.FC = () => {
                 }
                 size={28}
                 score={restaurant.score}
-                name={restaurant.name}
+                name={showName ? restaurant.name : undefined}
                 hasData={!!hasData}
               />
             </Marker>

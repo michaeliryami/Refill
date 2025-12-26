@@ -6,7 +6,7 @@
  * @module screens/SplashScreen
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -15,8 +15,8 @@ interface SplashScreenProps {
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
-  const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.8);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
     // Animate in
@@ -63,7 +63,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           <Ionicons name="water" size={80} color="#FFFFFF" />
         </View>
         <Text style={styles.title}>Refill</Text>
-        <Text style={styles.subtitle}>Find Free Amenities Nearby</Text>
+        <Text style={styles.subtitle}>Society Needed It, So We Built It</Text>
       </Animated.View>
     </View>
   );
@@ -101,3 +101,4 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 });
+

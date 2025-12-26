@@ -6,7 +6,7 @@
  * @module components/SuccessModal
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius, Shadows } from '../utils/constants';
@@ -18,14 +18,14 @@ interface SuccessModalProps {
   onClose: () => void;
 }
 
-export const SuccessModal: React.FC<SuccessModalProps> = ({
+const SuccessModalComponent: React.FC<SuccessModalProps> = ({
   visible,
   title,
   message,
   onClose,
 }) => {
-  const scaleAnim = new Animated.Value(0);
-  const fadeAnim = new Animated.Value(0);
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -84,6 +84,9 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
   );
 };
 
+// Memoize to prevent unnecessary re-renders
+export const SuccessModal = memo(SuccessModalComponent);
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -137,3 +140,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

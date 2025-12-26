@@ -6,7 +6,7 @@
  * @module components/RestaurantDetails
  */
 
-import React, { useState } from 'react';
+import React, { useState, memo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius, Shadows } from '../utils/constants';
@@ -20,22 +20,22 @@ export interface RestaurantDetailsProps {
   onReport: (restaurantId: string, amenities: any) => Promise<void>;
 }
 
-export const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
+const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
   restaurant,
   onClose,
   onReport,
 }) => {
   const [showSurvey, setShowSurvey] = useState(false);
 
-  const openDirections = (): void => {
+  const openDirections = useCallback((): void => {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${restaurant.location.latitude},${restaurant.location.longitude}`;
     Linking.openURL(url);
-  };
+  }, [restaurant.location]);
 
-  const formatDistance = (distance?: number): string => {
+  const formatDistance = useCallback((distance?: number): string => {
     if (!distance) return '';
     return `${distance} mi away`;
-  };
+  }, []);
 
   const renderAmenityStatus = (
     value: boolean | null,
@@ -124,7 +124,15 @@ export const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
 
   return (
     <View style={styles.wrapper}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.container} 
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={10}
+        windowSize={11}
+      >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -240,6 +248,9 @@ export const RestaurantDetails: React.FC<RestaurantDetailsProps> = ({
     </View>
   );
 };
+
+// Memoize the component to prevent unnecessary re-renders
+export const RestaurantDetails = memo(RestaurantDetailsComponent);
 
 const styles = StyleSheet.create({
   wrapper: {

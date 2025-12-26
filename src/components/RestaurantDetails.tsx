@@ -156,13 +156,48 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
         <View style={styles.headerTop}>
           <View style={styles.headerLeft}>
             <Text style={styles.name}>{restaurant.name}</Text>
-            {restaurant.score !== undefined && restaurant.score !== null && (
-              <View style={styles.headerScoreBadge}>
-                <Text style={styles.headerScoreText}>
-                  {restaurant.score.toFixed(1)}/10
-                </Text>
-              </View>
-            )}
+            {(() => {
+              // Calculate total unique reports (count each amenity once per report)
+              const totalReports = Math.max(
+                restaurant.amenities.freeRefillsStats?.total || 0,
+                restaurant.amenities.breadBasketStats?.total || 0,
+                restaurant.amenities.payAtTableStats?.total || 0,
+                restaurant.amenities.attendantStats?.total || 0
+              );
+              
+              const hasScore = restaurant.score !== undefined && restaurant.score !== null;
+              
+              console.log('Score Debug:', {
+                hasScore,
+                score: restaurant.score,
+                totalReports,
+                stats: {
+                  refills: restaurant.amenities.freeRefillsStats?.total,
+                  bread: restaurant.amenities.breadBasketStats?.total,
+                  pay: restaurant.amenities.payAtTableStats?.total,
+                  attendant: restaurant.amenities.attendantStats?.total,
+                }
+              });
+              
+              if (!hasScore && totalReports === 0) return null;
+              
+              return (
+                <View style={styles.headerScoreContainer}>
+                  {hasScore && (
+                    <View style={styles.headerScoreBadge}>
+                      <Text style={styles.headerScoreText}>
+                        {restaurant.score.toFixed(1)}/10
+                      </Text>
+                    </View>
+                  )}
+                  {totalReports > 0 && (
+                    <Text style={styles.headerReportCount}>
+                      based on {totalReports} {totalReports === 1 ? 'report' : 'reports'}
+                    </Text>
+                  )}
+                </View>
+              );
+            })()}
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={28} color="#9CA3AF" />
@@ -306,19 +341,30 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize['2xl'],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
-    marginBottom: 6,
+    marginBottom: 8,
+  },
+  headerScoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   headerScoreBadge: {
     backgroundColor: '#1F2E39',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
-    alignSelf: 'flex-start',
   },
   headerScoreText: {
     fontSize: 14,
     fontWeight: Typography.fontWeight.bold,
     color: '#FFFFFF',
+  },
+  headerReportCount: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: Typography.fontWeight.medium,
+    lineHeight: 16,
   },
   distanceRow: {
     flexDirection: 'row',

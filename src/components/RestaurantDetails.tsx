@@ -154,7 +154,16 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Text style={styles.name}>{restaurant.name}</Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.name}>{restaurant.name}</Text>
+            {restaurant.score !== undefined && restaurant.score !== null && (
+              <View style={styles.headerScoreBadge}>
+                <Text style={styles.headerScoreText}>
+                  {restaurant.score.toFixed(1)}/10
+                </Text>
+              </View>
+            )}
+          </View>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={28} color="#9CA3AF" />
           </TouchableOpacity>
@@ -289,12 +298,27 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: Spacing.sm,
   },
+  headerLeft: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
   name: {
     fontSize: Typography.fontSize['2xl'],
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
-    flex: 1,
-    marginRight: Spacing.md,
+    marginBottom: 6,
+  },
+  headerScoreBadge: {
+    backgroundColor: '#1F2E39',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  headerScoreText: {
+    fontSize: 14,
+    fontWeight: Typography.fontWeight.bold,
+    color: '#FFFFFF',
   },
   distanceRow: {
     flexDirection: 'row',

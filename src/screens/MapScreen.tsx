@@ -58,40 +58,51 @@ export const MapScreen: React.FC = () => {
    * Pan responder for swipe to dismiss on drag handle only
    * Only responds to gestures on the drag handle, not the scrollable content
    */
-  const dragHandlePanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to downward swipes
-        return gestureState.dy > 5;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          modalTranslateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
-          // Swipe down threshold exceeded, close modal
-          Animated.timing(modalTranslateY, {
-            toValue: 600,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            setModalVisible(false);
-            modalTranslateY.setValue(0);
-          });
-        } else {
-          // Reset position
+  const dragHandlePanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          // Only respond to downward swipes
+          return gestureState.dy > 5;
+        },
+        onPanResponderMove: (_, gestureState) => {
+          if (gestureState.dy > 0) {
+            modalTranslateY.setValue(gestureState.dy);
+          }
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 100 || gestureState.vy > 0.5) {
+            // Swipe down threshold exceeded, close modal
+            Animated.timing(modalTranslateY, {
+              toValue: 600,
+              duration: 200,
+              useNativeDriver: true,
+            }).start(() => {
+              setModalVisible(false);
+              setSelectedRestaurant(null);
+              modalTranslateY.setValue(0);
+            });
+          } else {
+            // Reset position
+            Animated.spring(modalTranslateY, {
+              toValue: 0,
+              friction: 8,
+              useNativeDriver: true,
+            }).start();
+          }
+        },
+        onPanResponderTerminate: () => {
+          // Reset if gesture is interrupted
           Animated.spring(modalTranslateY, {
             toValue: 0,
             friction: 8,
             useNativeDriver: true,
           }).start();
-        }
-      },
-    })
-  ).current;
+        },
+      }),
+    [modalTranslateY]
+  );
 
   /**
    * Request location permissions and get user location
@@ -292,9 +303,19 @@ export const MapScreen: React.FC = () => {
    * Handle marker press
    */
   const handleMarkerPress = useCallback((restaurant: Restaurant): void => {
+    modalTranslateY.setValue(0);
     setSelectedRestaurant(restaurant);
     setModalVisible(true);
-  }, []);
+  }, [modalTranslateY]);
+  
+  /**
+   * Handle modal close
+   */
+  const handleCloseModal = useCallback(() => {
+    modalTranslateY.setValue(0);
+    setModalVisible(false);
+    setSelectedRestaurant(null);
+  }, [modalTranslateY]);
 
   /**
    * Handle report submission
@@ -630,13 +651,13 @@ export const MapScreen: React.FC = () => {
         visible={modalVisible && selectedRestaurant !== null}
         animationType="slide"
         transparent
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={handleCloseModal}
       >
         <View style={styles.modalOverlay}>
           <TouchableOpacity 
             style={styles.modalOverlayTouchable}
             activeOpacity={1}
-            onPress={() => setModalVisible(false)}
+            onPress={handleCloseModal}
           />
           <Animated.View 
             style={[
@@ -655,7 +676,7 @@ export const MapScreen: React.FC = () => {
             {selectedRestaurant && (
               <RestaurantDetails
                 restaurant={selectedRestaurant}
-                onClose={() => setModalVisible(false)}
+                onClose={handleCloseModal}
                 onReport={handleReport}
               />
             )}

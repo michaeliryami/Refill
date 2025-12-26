@@ -25,6 +25,7 @@ interface AmenityOption {
   iconName: string;
   iconLibrary: 'ionicons' | 'material';
   description: string;
+  invertColors?: boolean; // For bathroom attendant where "no" is good
 }
 
 const amenityOptions: AmenityOption[] = [
@@ -55,6 +56,7 @@ const amenityOptions: AmenityOption[] = [
     iconName: 'person',
     iconLibrary: 'ionicons',
     description: 'Tip expected',
+    invertColors: true, // NO is good (no attendant)
   },
 ];
 
@@ -99,9 +101,9 @@ const AmenitySurveyComponent: React.FC<AmenitySurveyProps> = ({
     }));
   }, []);
 
-  const getButtonColor = useCallback((value: boolean | null): string => {
-    if (value === true) return '#10B981'; // Green for YES
-    if (value === false) return '#EF4444'; // Red for NO
+  const getButtonColor = useCallback((value: boolean | null, invertColors: boolean = false): string => {
+    if (value === true) return invertColors ? '#EF4444' : '#10B981'; // Inverted for attendant
+    if (value === false) return invertColors ? '#10B981' : '#EF4444'; // Inverted for attendant
     return '#9CA3AF'; // Gray for not answered
   }, []);
 
@@ -181,7 +183,7 @@ const AmenitySurveyComponent: React.FC<AmenitySurveyProps> = ({
             <TouchableOpacity
               style={[
                 styles.amenityButton,
-                { backgroundColor: getButtonColor(amenities[option.key] as boolean | null) }
+                { backgroundColor: getButtonColor(amenities[option.key] as boolean | null, option.invertColors) }
               ]}
               onPress={() => toggleAmenity(option.key)}
               activeOpacity={0.7}

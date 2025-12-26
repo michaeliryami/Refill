@@ -42,7 +42,8 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
     stats: { yes: number; no: number; total: number } | undefined,
     label: string,
     iconName: string,
-    iconLibrary: 'ionicons' | 'material' = 'ionicons'
+    iconLibrary: 'ionicons' | 'material' = 'ionicons',
+    invertColors: boolean = false // For bathroom attendant where "no" is good
   ): React.ReactElement => {
     const totalReports = stats?.total || 0;
     const yesCount = stats?.yes || 0;
@@ -76,10 +77,18 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
           <>
             <View style={styles.percentageBar}>
               {yesPercent > 0 && (
-                <View style={[styles.barSegment, styles.yesBar, { width: `${yesPercent}%` }]} />
+                <View style={[
+                  styles.barSegment, 
+                  invertColors ? styles.noBar : styles.yesBar, 
+                  { width: `${yesPercent}%` }
+                ]} />
               )}
               {noPercent > 0 && (
-                <View style={[styles.barSegment, styles.noBar, { width: `${noPercent}%` }]} />
+                <View style={[
+                  styles.barSegment, 
+                  invertColors ? styles.yesBar : styles.noBar, 
+                  { width: `${noPercent}%` }
+                ]} />
               )}
               {idkPercent > 0 && (
                 <View style={[styles.barSegment, styles.idkBar, { width: `${idkPercent}%` }]} />
@@ -87,11 +96,11 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
             </View>
             <View style={styles.barLabels}>
               <View style={styles.barLabelItem}>
-                <View style={[styles.barLabelDot, { backgroundColor: '#10B981' }]} />
+                <View style={[styles.barLabelDot, { backgroundColor: invertColors ? '#EF4444' : '#10B981' }]} />
                 <Text style={styles.barLabelText}>YES ({yesCount})</Text>
               </View>
               <View style={styles.barLabelItem}>
-                <View style={[styles.barLabelDot, { backgroundColor: '#EF4444' }]} />
+                <View style={[styles.barLabelDot, { backgroundColor: invertColors ? '#10B981' : '#EF4444' }]} />
                 <Text style={styles.barLabelText}>NO ({noCount})</Text>
               </View>
               {idkCount > 0 && (
@@ -109,7 +118,13 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
 
   if (showSurvey) {
     return (
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        scrollEventThrottle={16}
+      >
         <AmenitySurvey
           initialAmenities={restaurant.amenities}
           onSubmit={async (amenities) => {
@@ -123,16 +138,19 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
   }
 
   return (
-    <View style={styles.wrapper}>
-      <ScrollView 
-        style={styles.container} 
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={50}
-        initialNumToRender={10}
-        windowSize={11}
-      >
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      updateCellsBatchingPeriod={50}
+      initialNumToRender={10}
+      windowSize={11}
+      scrollEventThrottle={16}
+      bounces={true}
+      nestedScrollEnabled={true}
+    >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -221,7 +239,8 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
             restaurant.amenities.attendantStats,
             'Bathroom Attendant',
             'person',
-            'ionicons'
+            'ionicons',
+            true // Invert colors - NO is good!
           )}
         </View>
       </View>
@@ -245,7 +264,6 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
         </TouchableOpacity>
       </View>
     </ScrollView>
-    </View>
   );
 };
 
@@ -253,15 +271,12 @@ const RestaurantDetailsComponent: React.FC<RestaurantDetailsProps> = ({
 export const RestaurantDetails = memo(RestaurantDetailsComponent);
 
 const styles = StyleSheet.create({
-  wrapper: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    overflow: 'hidden',
-  },
   container: {
-    flex: 1,
+    height: '100%',
+    backgroundColor: '#F9FAFB',
+  },
+  contentContainer: {
+    paddingBottom: 20,
   },
   header: {
     padding: Spacing.lg,

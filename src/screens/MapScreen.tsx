@@ -55,15 +55,15 @@ export const MapScreen: React.FC = () => {
   const modalTranslateY = useRef(new Animated.Value(0)).current;
 
   /**
-   * Pan responder for swipe to dismiss
-   * Only created once on mount for performance
+   * Pan responder for swipe to dismiss on drag handle only
+   * Only responds to gestures on the drag handle, not the scrollable content
    */
-  const panResponder = useRef(
+  const dragHandlePanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false, // Don't capture on start
+      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to significant vertical swipes
-        return Math.abs(gestureState.dy) > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+        // Only respond to downward swipes
+        return gestureState.dy > 5;
       },
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy > 0) {
@@ -71,7 +71,7 @@ export const MapScreen: React.FC = () => {
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100) {
+        if (gestureState.dy > 100 || gestureState.vy > 0.5) {
           // Swipe down threshold exceeded, close modal
           Animated.timing(modalTranslateY, {
             toValue: 600,
@@ -492,25 +492,48 @@ export const MapScreen: React.FC = () => {
           {/* Search Suggestions Dropdown */}
           {showSuggestions && searchSuggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
-              {searchSuggestions.map((restaurant) => (
-                <TouchableOpacity
-                  key={restaurant.id}
-                  style={styles.suggestionItem}
-                  onPress={() => {
-                    handleSelectSuggestion(restaurant);
-                    Keyboard.dismiss();
-                  }}
-                >
-                  <Ionicons name="location" size={18} color="#6B7280" style={styles.suggestionIcon} />
-                  <View style={styles.suggestionContent}>
-                    <Text style={styles.suggestionName}>{restaurant.name}</Text>
-                    <Text style={styles.suggestionAddress}>{restaurant.address}</Text>
-                  </View>
-                  {restaurant.distance && (
-                    <Text style={styles.suggestionDistance}>{restaurant.distance} mi</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
+              {searchSuggestions.map((restaurant) => {
+                // Calculate total review count
+                const totalReviews = 
+                  (restaurant.amenities.freeRefillsStats?.total || 0) +
+                  (restaurant.amenities.breadBasketStats?.total || 0) +
+                  (restaurant.amenities.payAtTableStats?.total || 0) +
+                  (restaurant.amenities.attendantStats?.total || 0);
+                
+                const hasScore = restaurant.score !== undefined && restaurant.score !== null;
+                
+                return (
+                  <TouchableOpacity
+                    key={restaurant.id}
+                    style={styles.suggestionItem}
+                    onPress={() => {
+                      handleSelectSuggestion(restaurant);
+                      Keyboard.dismiss();
+                    }}
+                  >
+                    <Ionicons name="location" size={18} color="#6B7280" style={styles.suggestionIcon} />
+                    <View style={styles.suggestionContent}>
+                      <Text style={styles.suggestionName}>{restaurant.name}</Text>
+                      <Text style={styles.suggestionAddress}>{restaurant.address}</Text>
+                      {hasScore && totalReviews > 0 && (
+                        <View style={styles.suggestionScoreRow}>
+                          <View style={styles.suggestionScoreBadge}>
+                            <Text style={styles.suggestionScoreText}>
+                              {restaurant.score.toFixed(1)}/10
+                            </Text>
+                          </View>
+                          <Text style={styles.suggestionReviewCount}>
+                            {totalReviews} {totalReviews === 1 ? 'review' : 'reviews'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    {restaurant.distance && (
+                      <Text style={styles.suggestionDistance}>{restaurant.distance} mi</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
         </View>
@@ -609,31 +632,35 @@ export const MapScreen: React.FC = () => {
         transparent
         onRequestClose={() => setModalVisible(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <Animated.View 
-                style={[
-                  styles.modalContent,
-                  {
-                    transform: [{ translateY: modalTranslateY }],
-                  },
-                ]}
-              >
-                <View {...panResponder.panHandlers} style={styles.dragHandle}>
-                  <View style={styles.dragHandleLine} />
-                </View>
-                {selectedRestaurant && (
-                  <RestaurantDetails
-                    restaurant={selectedRestaurant}
-                    onClose={() => setModalVisible(false)}
-                    onReport={handleReport}
-                  />
-                )}
-              </Animated.View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity 
+            style={styles.modalOverlayTouchable}
+            activeOpacity={1}
+            onPress={() => setModalVisible(false)}
+          />
+          <Animated.View 
+            style={[
+              styles.modalContent,
+              {
+                transform: [{ translateY: modalTranslateY }],
+              },
+            ]}
+          >
+            {/* Drag handle - only this area triggers swipe to dismiss */}
+            <View {...dragHandlePanResponder.panHandlers} style={styles.dragHandle}>
+              <View style={styles.dragHandleLine} />
+            </View>
+            
+            {/* Scrollable content - no pan responder interference */}
+            {selectedRestaurant && (
+              <RestaurantDetails
+                restaurant={selectedRestaurant}
+                onClose={() => setModalVisible(false)}
+                onReport={handleReport}
+              />
+            )}
+          </Animated.View>
+        </View>
       </Modal>
 
       {/* Success Modal */}
@@ -717,6 +744,28 @@ const styles = StyleSheet.create({
   suggestionAddress: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  suggestionScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  suggestionScoreBadge: {
+    backgroundColor: '#1F2E39',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  suggestionScoreText: {
+    fontSize: 11,
+    fontWeight: Typography.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  suggestionReviewCount: {
+    fontSize: 11,
+    color: Colors.textTertiary,
   },
   suggestionDistance: {
     fontSize: Typography.fontSize.sm,
@@ -764,8 +813,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'flex-end',
   },
+  modalOverlayTouchable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   modalContent: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9FAFB',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     height: '70%',
@@ -773,7 +829,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.2,
     shadowRadius: 16,
-    overflow: 'hidden',
   },
   dragHandle: {
     width: '100%',
@@ -782,12 +837,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    zIndex: 10,
   },
   dragHandleLine: {
     width: 40,
-    height: 4,
+    height: 5,
     backgroundColor: '#D1D5DB',
-    borderRadius: 2,
+    borderRadius: 3,
   },
 });
 

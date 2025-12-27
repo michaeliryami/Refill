@@ -82,6 +82,16 @@ export const MapScreen: React.FC = () => {
               setModalVisible(false);
               setSelectedRestaurant(null);
               modalTranslateY.setValue(0);
+              
+              // Clear search and reload full map
+              setSearchQuery('');
+              setSearchSuggestions([]);
+              setShowSuggestions(false);
+              
+              // Reload nearby restaurants if we have user location
+              if (userLocation) {
+                loadNearbyRestaurants(userLocation);
+              }
             });
           } else {
             // Reset position
@@ -101,7 +111,7 @@ export const MapScreen: React.FC = () => {
           }).start();
         },
       }),
-    [modalTranslateY]
+    [modalTranslateY, userLocation, loadNearbyRestaurants]
   );
 
   /**
@@ -315,7 +325,17 @@ export const MapScreen: React.FC = () => {
     modalTranslateY.setValue(0);
     setModalVisible(false);
     setSelectedRestaurant(null);
-  }, [modalTranslateY]);
+    
+    // Clear search and reload full map
+    setSearchQuery('');
+    setSearchSuggestions([]);
+    setShowSuggestions(false);
+    
+    // Reload nearby restaurants if we have user location
+    if (userLocation) {
+      loadNearbyRestaurants(userLocation);
+    }
+  }, [modalTranslateY, userLocation, loadNearbyRestaurants]);
 
   /**
    * Handle report submission

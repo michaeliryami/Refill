@@ -46,7 +46,7 @@ const SuccessModalComponent: React.FC<SuccessModalProps> = ({
       scaleAnim.setValue(0);
       fadeAnim.setValue(0);
     }
-  }, [visible]);
+  }, [visible, scaleAnim, fadeAnim]);
 
   return (
     <Modal

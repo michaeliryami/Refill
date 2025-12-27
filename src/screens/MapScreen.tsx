@@ -371,12 +371,18 @@ export const MapScreen: React.FC = () => {
         }
       }
 
-      setShowSuccessModal(true);
+      // Close modal and reset map
+      handleCloseModal();
+      
+      // Show success modal after a brief delay
+      setTimeout(() => {
+        setShowSuccessModal(true);
+      }, 300);
     } catch (error) {
       console.error('Error submitting report:', error);
       Alert.alert('Error', 'Failed to submit report. Please try again.');
     }
-  }, [selectedRestaurant]);
+  }, [selectedRestaurant, handleCloseModal]);
 
   /**
    * Toggle filter selection
